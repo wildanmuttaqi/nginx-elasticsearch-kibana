@@ -1,6 +1,23 @@
 #Nginx ElasticSearch and Kibana with Docker
 
-https://camo.githubusercontent.com/a57f9b85c2a9196144dd3ac6c3194261b60df5c3246bc43cd5c806b03568c0b0/68747470733a2f2f6d69726f2e6d656469756d2e636f6d2f6d61782f3730302f312a5a735a62417534436177546d34346c763474796358412e706e67
+<img src="https://miro.medium.com/max/700/1*ZsZbAu4CawTm44lv4tycXA.png" height="200" />
+
+#Setup
+Set `vm.max_map_count` to at least 262144 :
+```
+grep vm.max_map_count /etc/sysctl.conf
+vm.max_map_count=262144
+```
+to apply :
+```
+sysctl -w vm.max_map_count=262144
+```
+
+#Run 
+Running `docker-compose.yml` :
+```
+docker-compose up -d
+```
 
 #Reference :
 https://edward-cernera.medium.com/deploy-a-multi-node-elasticsearch-instance-with-docker-compose-ef63625f246e
