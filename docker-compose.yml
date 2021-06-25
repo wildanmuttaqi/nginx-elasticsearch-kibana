@@ -1,16 +1,7 @@
 version: '3.8'
 
 x-common-args: &common-args
-    context: ./elasticsearch
-
-x-env_file: &default-env_file
-    - ./.env
-
-x-logging: &default-logging
-    driver: "json-file"
-    options:
-        max-size: "300m"
-        max-file: "10"
+    context: ./docker/elasticsearch
 
 x-memlock: &default-memlock
     memlock:
@@ -21,94 +12,95 @@ services:
     web:
         build:
             context: ./docker/nginx
-        logging: *default-logging
+        container_name: web
         environment:
             - TZ=Asia/Jakarta
         volumes:
-            - ./docker/nginx/nginx.conf/:/etc/nginx/nginx.conf
+            - ./docker/nginx/nginx.conf/:/etc/nginx.conf
+            - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
         ports: 
             - 80:80
-        networks: 
-            - delk
-    es01:
-        build:
-            <<: *common-args
-        container_name: es01
-        env_file: *default-env_file
-        environment:
-            - node.name=es01
-            - discovery.seed_hosts=es02,es03
-        ulimits: 
-            <<: *default-memlock
-        mem_limit: 1g
-        volumes:
-            - type: bind
-              source: ./elasticsearch/elasticsearch.yml
-              target: /usr/share/elasticsearch/config/elasticsearch.yml
-              read_only: true
-        ports:
-            - 9200:9200
         networks:
-            - delk
-    es02:
-        build:
-            <<: *common-args
-        container_name: es02
-        env_file: *default-env_file
-        environment:
-            - node.name=es02
-            - discovery.seed_hosts=es01,es03
-        ulimits: 
-            <<: *default-memlock
-        mem_limit: 1g
-        volumes:
-            - type: bind
-              source: ./elasticsearch/elasticsearch.yml
-              target: /usr/share/elasticsearch/config/elasticsearch.yml
-              read_only: true
-        networks:
-            - delk
-    es03:
-        build:
-            <<: *common-args
-        container_name: es03
-        env_file: *default-env_file
-        environment:
-            - node.name=es03
-            - discovery.seed_hosts=es01,es02
-        ulimits: 
-            <<: *default-memlock
-        mem_limit: 1g
-        volumes:
-            - type: bind
-              source: ./elasticsearch/elasticsearch.yml
-              target: /usr/share/elasticsearch/config/elasticsearch.yml
-              read_only: true
-        networks:
-            - delk
-    kibana:
-        image: docker.elastic.co/kibana/kibana:5.6.4
-        build:
-            context: kibana/
-            args:
-            ELK_VERSION: ${ELK_VERSION:-7.10.1}
-        volumes:
-            - type: bind
-              source: ./kibana/kibana.yml
-              target: /usr/share/kibana/config/kibana.yml
-              read_only: true
-        ports:
-            - 5601:5601
-        depends_on:
-            - es01
-            - es02
-            - es03
+            - elastic
         links:
             - es01
             - es02
             - es03
+            - kib01
+        depends_on:
+            - es01
+            - es02
+            - es03
+            - kib01
+    es01:
+        build:
+            <<: *common-args
+        container_name: es01
+        environment:
+            - node.name=es01
+            - cluster.name=es-docker-cluster
+            - discovery.seed_hosts=es02,es03
+            - cluster.initial_master_nodes=es01,es02,es03
+            - bootstrap.memory_lock=true
+            - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+        ulimits: 
+            <<: *default-memlock
+        volumes:
+            - data01:/usr/share/elasticsearch/data
+        ports:
+            - 9200:9200
         networks:
-            - delk
+            - elastic
+    es02:
+        build:
+            <<: *common-args
+        container_name: es02
+        environment:
+            - node.name=es02
+            - cluster.name=es-docker-cluster
+            - discovery.seed_hosts=es01,es03
+            - cluster.initial_master_nodes=es01,es02,es03
+            - bootstrap.memory_lock=true
+            - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+        ulimits: 
+            <<: *default-memlock
+        volumes:
+            - data02:/usr/share/elasticsearch/data
+        networks:
+            - elastic
+    es03:
+        build:
+            <<: *common-args
+        container_name: es03
+        environment:
+            - node.name=es03
+            - cluster.name=es-docker-cluster
+            - discovery.seed_hosts=es01,es02
+            - cluster.initial_master_nodes=es01,es02,es03
+            - bootstrap.memory_lock=true
+            - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+        ulimits: 
+            <<: *default-memlock
+        volumes:
+            - data03:/usr/share/elasticsearch/data
+        networks:
+            - elastic
+    kib01:
+        build:
+            context: ./docker/kibana
+        container_name: kib01
+        volumes:
+            - type: bind
+              source: ./docker/kibana/kibana.yml
+              target: /usr/share/kibana/config/kibana.yml
+              read_only: true
+        environment:
+            ELASTICSEARCH_URL: http://es01:9200
+            ELASTICSEARCH_HOSTS: '["http://es01:9200","http://es02:9200","http://es03:9200"]'
+        ports:
+            - 5601:5601
+        networks:
+            - elastic
 volumes:
     data01:
         driver: local
@@ -118,5 +110,5 @@ volumes:
         driver: local
 
 networks:
-    delk:
+    elastic:
         driver: bridge
